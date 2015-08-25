@@ -137,7 +137,7 @@ static void layer_update_callback(Layer *me, GContext *ctx) {
     if (chargeState >= 80) {
         color = GColorFromRGB(0, 255, 0);
     } else if (chargeState >= 50) {
-        color = GColorFromRGB(0, 0, 255);
+        color = GColorFromRGB(0, 85, 255);
     } else if (chargeState >= 30) {
         color = GColorFromRGB(255, 255, 0);
     } else if (chargeState > -1) {
