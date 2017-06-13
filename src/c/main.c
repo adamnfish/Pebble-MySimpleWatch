@@ -21,6 +21,16 @@ static Layer *s_canvas_layer;
 
 static GFont s_time_font_dte;
 
+#ifdef PBL_PLATFORM_CHALK
+  static int x0 = 18;
+  static int y0 = 6;
+  static int y0d = 4;
+#else
+  static int x0 = 0;
+  static int y0 = 0;
+  static int y0d = 0;
+#endif  
+
 // states
 static bool lastBtStateConnected = false;
 static int chargeState = -1;
@@ -31,34 +41,42 @@ static int h2 = 0;
 static int m1 = 0;
 static int m2 = 0;
 
-// config keys and values 
-#define CONFIG_KEY_HH_IN_BOLD 0
-#define CONFIG_KEY_MM_IN_BOLD 1
-#define CONFIG_KEY_LOCALE 2
-  
+// config values 
 #define locale_en 0x0
 #define locale_fr 0x1
 #define locale_de 0x2
 #define locale_es 0x3
+#define locale_it 0x4
+
+#define time_sep_none 0x0
+#define time_sep_square 0x1
+#define time_sep_round 0x2
+#define time_sep_square_bold 0x3
+#define time_sep_round_bold 0x4
 
 static bool hh_in_bold = true;
 static bool mm_in_bold = false;
 static int locale = locale_en;
+static bool hh_strip_zero = false;
+static int time_sep = time_sep_none;
+static bool repeat_vib = false;
 
-// days (en, fr, de, es)
-const char *DAYS[4][7] = { 
+// days (en, fr, de, es, it)
+const char *DAYS[5][7] = { 
   {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
   {"Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"},   
   {"Son", "Mon", "Die", "Mit", "Don", "Fre", "Sam"},
-  {"Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sab"}
+  {"Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sab"}, 
+  {"Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"}
 };
 
-// months (en, fr, de, es)
-const char *MONTHS[4][12] = { 
+// months (en, fr, de, es, it)
+const char *MONTHS[5][12] = { 
   {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
   {"Jan", "Fev", "Mar", "Avr", "Mai", "Jui", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"},   
   {"Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"},
-  {"Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"}
+  {"Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"},
+  {"Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"}
 };
 
 // in Spanish, the days of the week and the months of the year are not capitalized when spelled out or abbreviated
@@ -94,7 +112,7 @@ static int get_image_min(int idx) {
 }
 
 // widths
-const int WIDTHS[10] = { 35, 15, 33, 30, 33, 32, 33, 33, 33, 33};
+const int WIDTHS[10] = { 31, 11, 29, 26, 29, 28, 29, 29, 29, 29};
 
 // safe width getter
 static int get_width(int idx) {
@@ -112,6 +130,8 @@ static int get_total_width() {
   res += get_width(h2);
   res += get_width(m1);
   res += get_width(m2);
+  
+  res += 20; // padding
   
   return res;
 }
@@ -145,14 +165,41 @@ static void layer_update_callback(Layer *me, GContext *ctx) {
     }    
     
     graphics_context_set_stroke_color(ctx, color);
+    graphics_context_set_fill_color(ctx, color);
   #else
     graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx, GColorWhite);
   #endif
  
-  graphics_draw_line(ctx, GPoint(24,88), GPoint(120, 88));
-  graphics_draw_line(ctx, GPoint(24,89), GPoint(120, 89));
-  graphics_draw_line(ctx, GPoint(24,90), GPoint(120, 90));
-  graphics_draw_line(ctx, GPoint(24,91), GPoint(120, 91));
+  graphics_fill_rect(ctx, GRect(x0 + 24, y0 + 88, 96, 4), 0, GCornersAll);
+  
+  // debug - force separator
+  //time_sep = time_sep_square_bold;
+  
+  if (time_sep != time_sep_none) {
+    int total_w = get_total_width(); // max is 0000 -> 4*31 + 20 = 144
+    int x_min = ((144 - total_w) / 2) +  1 + get_width(h1) + 4 + get_width(h2) + 3;
+    
+    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx, GColorWhite);
+
+    if (time_sep == time_sep_square) {
+      graphics_fill_rect(ctx, GRect(x0 + x_min, y0 + y0d + 37, 4, 4), 0, GCornersAll);
+      graphics_fill_rect(ctx, GRect(x0 + x_min, y0 + y0d + 56, 4, 4), 0, GCornersAll);
+    }
+    else if (time_sep == time_sep_round) {
+      graphics_fill_rect(ctx, GRect(x0 + x_min, y0 + y0d + 37, 4, 4), 1, GCornersAll);
+      graphics_fill_rect(ctx, GRect(x0 + x_min, y0 + y0d + 56, 4, 4), 1, GCornersAll);
+    }
+    else if (time_sep == time_sep_square_bold) {
+      graphics_fill_rect(ctx, GRect(x0 + x_min - 1, y0 + y0d + 36, 6, 6), 0, GCornersAll);
+      graphics_fill_rect(ctx, GRect(x0 + x_min - 1, y0 + y0d + 55, 6, 6), 0, GCornersAll);
+    }
+    else if (time_sep == time_sep_round_bold) {
+      graphics_fill_rect(ctx, GRect(x0 + x_min - 1, y0 + y0d + 36, 6, 6), 2, GCornersAll);
+      graphics_fill_rect(ctx, GRect(x0 + x_min - 1, y0 + y0d + 55, 6, 6), 2, GCornersAll);
+    }
+  }
 }
 
 static void unload_time_images() {
@@ -185,35 +232,51 @@ static void load_time_images() {
   Layer *window_layer = window_get_root_layer(s_main_window);
   
   // center align
-  int total_w = get_total_width() + 4; // max is 0000 -> 4*35 + 4 = 144
+  int total_w = get_total_width(); // max is 0000 -> 4*31 + 20 = 144
   int current_x = (144 - total_w) / 2;
   
   //APP_LOG(APP_LOG_LEVEL_DEBUG, "total_w = %d", total_w);
   
   // Create and add the H1 Bitmap Layer
-  s_h1_img_layer = bitmap_layer_create(GRect(current_x, 27, get_width(h1), 43));
+  if (time_sep == time_sep_none) {
+    current_x += 2;
+  }
+  else {
+    current_x += 1;
+  }
+  s_h1_img_layer = bitmap_layer_create(GRect(x0 + current_x, y0 + y0d + 27, get_width(h1), 43));
   s_h1_bitmap = gbitmap_create_with_resource(get_image_hour(h1));
   bitmap_layer_set_bitmap(s_h1_img_layer, s_h1_bitmap);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_h1_img_layer));
   
   // Create and add the H2 Bitmap Layer
   current_x += get_width(h1);
-  s_h2_img_layer = bitmap_layer_create(GRect(current_x, 27, get_width(h2), 43));
+  current_x += 4;
+  
+  s_h2_img_layer = bitmap_layer_create(GRect(x0 + current_x, y0 + y0d + 27, get_width(h2), 43));
   s_h2_bitmap = gbitmap_create_with_resource(get_image_hour(h2));
   bitmap_layer_set_bitmap(s_h2_img_layer, s_h2_bitmap);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_h2_img_layer));
   
   // Create and add the M1 Bitmap Layer
   current_x += get_width(h2);
-  current_x += 4; // separation between hours and minutes
-  s_m1_img_layer = bitmap_layer_create(GRect(current_x, 28, get_width(m1), 42));
+  if (time_sep == time_sep_none) {
+    current_x += 8;
+  }
+  else {
+    current_x += 10;
+  }
+  
+  s_m1_img_layer = bitmap_layer_create(GRect(x0 + current_x, y0 + y0d + 27, get_width(m1), 43));
   s_m1_bitmap = gbitmap_create_with_resource(get_image_min(m1));
   bitmap_layer_set_bitmap(s_m1_img_layer, s_m1_bitmap);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_m1_img_layer));
   
   // Create and add the M2 Bitmap Layer
   current_x += get_width(m1);
-  s_m2_img_layer = bitmap_layer_create(GRect(current_x, 28, get_width(m2), 42));
+  current_x += 4;
+  
+  s_m2_img_layer = bitmap_layer_create(GRect(x0 + current_x, y0 + y0d + 27, get_width(m2), 43));
   s_m2_bitmap = gbitmap_create_with_resource(get_image_min(m2));
   bitmap_layer_set_bitmap(s_m2_img_layer, s_m2_bitmap);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_m2_img_layer));
@@ -231,7 +294,7 @@ static void main_window_load(Window *window) {
   load_time_images();
   
   // Create and add the time TextLayer DTE
-  s_time_layer_dte = text_layer_create(GRect(0, 96, 144, 32));
+  s_time_layer_dte = text_layer_create(GRect(x0, y0 + 96, 144, 32));
   text_layer_set_background_color(s_time_layer_dte, GColorBlack);
   text_layer_set_text_color(s_time_layer_dte, GColorWhite);
   text_layer_set_text(s_time_layer_dte, "Ddd 00 Mmm");
@@ -245,7 +308,7 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, s_canvas_layer);
   
   // Create and add a Bitmap Layer for BT Signal warning
-  s_warning_img_layer = bitmap_layer_create(GRect(0, 132, 144, 32));
+  s_warning_img_layer = bitmap_layer_create(GRect(x0, y0 + 132, 144, 32));
   s_warning_bitmap = gbitmap_create_with_resource(RESOURCE_ID_WARN28);
   bitmap_layer_set_bitmap(s_warning_img_layer, s_warning_bitmap);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_warning_img_layer));
@@ -304,12 +367,18 @@ static void update_display() {
   
   h1 = ascii_digit_to_int(buffer_hh[0]);
   h2 = ascii_digit_to_int(buffer_hh[1]);
+  
+  // hide leading zero if required
+  if (h1 == 0 && hh_strip_zero) h1 = -1;
 
   // Write the current minuts into the buffer
   strftime(buffer_mm, sizeof("00"), "%M", tick_time);
   
   m1 = ascii_digit_to_int(buffer_mm[0]);
   m2 = ascii_digit_to_int(buffer_mm[1]);
+  
+  // debug
+  //h1 = h2 = m1 = m2 = 0;
   
   // Write the current date into the buffer
   if (locale != locale_en) {
@@ -330,7 +399,7 @@ static void update_display() {
   // Display values in TextLayers
   text_layer_set_text(s_time_layer_dte, buffer_dte);
   
-  if (bluetooth_connection_service_peek()) {
+  if (connection_service_peek_pebble_app_connection()) {
     // phone is connected
     layer_set_hidden(bitmap_layer_get_layer(s_warning_img_layer), true); 
     //layer_set_hidden(text_layer_get_layer(s_time_layer_dte), false); 
@@ -340,8 +409,8 @@ static void update_display() {
     //layer_set_hidden(text_layer_get_layer(s_time_layer_dte), true); 
     layer_set_hidden(bitmap_layer_get_layer(s_warning_img_layer), false); 
     
-    // if we just lost the connection, vibe twice
-    if (lastBtStateConnected) {
+    // if we just lost the connection or if we want to have repeated vibrations, vibe twice
+    if (lastBtStateConnected || repeat_vib) {
       lastBtStateConnected = false;
       vibes_double_pulse();
     }
@@ -356,22 +425,22 @@ void read_configuration(void)
 {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "read_configuration");
   
-  if (persist_exists(CONFIG_KEY_HH_IN_BOLD))
+  if (persist_exists(MESSAGE_KEY_HH_IN_BOLD))
   {
-    hh_in_bold = persist_read_bool(CONFIG_KEY_HH_IN_BOLD);
+    hh_in_bold = persist_read_bool(MESSAGE_KEY_HH_IN_BOLD);
     APP_LOG(APP_LOG_LEVEL_DEBUG, "hh_in_bold = %d", hh_in_bold);
   }
   
-  if (persist_exists(CONFIG_KEY_MM_IN_BOLD))
+  if (persist_exists(MESSAGE_KEY_MM_IN_BOLD))
   {
-    mm_in_bold = persist_read_bool(CONFIG_KEY_MM_IN_BOLD);
+    mm_in_bold = persist_read_bool(MESSAGE_KEY_MM_IN_BOLD);
     APP_LOG(APP_LOG_LEVEL_DEBUG, "mm_in_bold = %d", mm_in_bold);
   }
   
-  if (persist_exists(CONFIG_KEY_LOCALE))
+  if (persist_exists(MESSAGE_KEY_LOCALE))
   {
-    locale = persist_read_int(CONFIG_KEY_LOCALE);
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "using config locale (0=en, 1=fr, 2=de, 3=es) = %d", locale);
+    locale = persist_read_int(MESSAGE_KEY_LOCALE);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "using config locale (0=en, 1=fr, 2=de, 3=es, 4=it) = %d", locale);
   }
   else {
     // use default / system locale
@@ -383,11 +452,31 @@ void read_configuration(void)
       locale = locale_de;
     } else if (strcmp(sys_locale, "es_ES") == 0) {
       locale = locale_es;
+    } else if (strcmp(sys_locale, "it_IT") == 0) {
+      locale = locale_it;
     } else {
       locale = locale_en; // default
     }
     
     APP_LOG(APP_LOG_LEVEL_DEBUG, "using default locale = %s -> %d", sys_locale, locale);
+  }
+  
+  if (persist_exists(MESSAGE_KEY_HH_STRIP_ZERO))
+  {
+    hh_strip_zero = persist_read_bool(MESSAGE_KEY_HH_STRIP_ZERO);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "hh_strip_zero = %d", hh_strip_zero);
+  }
+  
+  if (persist_exists(MESSAGE_KEY_TIME_SEP))
+  {
+    time_sep = persist_read_int(MESSAGE_KEY_TIME_SEP);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "time_sep = %d", time_sep);
+  }
+  
+  if (persist_exists(MESSAGE_KEY_REPEAT_VIB))
+  {
+    repeat_vib = persist_read_bool(MESSAGE_KEY_REPEAT_VIB);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "repeat_vib = %d", repeat_vib);
   }
 }
 
@@ -395,7 +484,7 @@ void in_received_handler(DictionaryIterator *received, void *context)
 {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "in_received_handler");
   
-  Tuple *hh_in_bold_tuple = dict_find(received, CONFIG_KEY_HH_IN_BOLD);
+  Tuple *hh_in_bold_tuple = dict_find(received, MESSAGE_KEY_HH_IN_BOLD);
   if (hh_in_bold_tuple)
   {
     app_log(APP_LOG_LEVEL_DEBUG,
@@ -406,15 +495,15 @@ void in_received_handler(DictionaryIterator *received, void *context)
 
     if (strcmp(hh_in_bold_tuple->value->cstring, "0") == 0)
     {
-      persist_write_bool(CONFIG_KEY_HH_IN_BOLD, false);
+      persist_write_bool(MESSAGE_KEY_HH_IN_BOLD, false);
     }
     else
     {
-      persist_write_bool(CONFIG_KEY_HH_IN_BOLD, true);
+      persist_write_bool(MESSAGE_KEY_HH_IN_BOLD, true);
     }
   }
 
-  Tuple *mm_in_bold_tuple = dict_find(received, CONFIG_KEY_MM_IN_BOLD);
+  Tuple *mm_in_bold_tuple = dict_find(received, MESSAGE_KEY_MM_IN_BOLD);
   if (mm_in_bold_tuple)
   {
     app_log(APP_LOG_LEVEL_DEBUG,
@@ -425,15 +514,15 @@ void in_received_handler(DictionaryIterator *received, void *context)
 
     if (strcmp(mm_in_bold_tuple->value->cstring, "1") == 0)
     {
-      persist_write_bool(CONFIG_KEY_MM_IN_BOLD, true);
+      persist_write_bool(MESSAGE_KEY_MM_IN_BOLD, true);
     }
     else
     {
-      persist_write_bool(CONFIG_KEY_MM_IN_BOLD, false);
+      persist_write_bool(MESSAGE_KEY_MM_IN_BOLD, false);
     }
   }
   
-  Tuple *locale_tuple = dict_find(received, CONFIG_KEY_LOCALE);
+  Tuple *locale_tuple = dict_find(received, MESSAGE_KEY_LOCALE);
   if (locale_tuple)
   {
     app_log(APP_LOG_LEVEL_DEBUG,
@@ -444,28 +533,101 @@ void in_received_handler(DictionaryIterator *received, void *context)
 
     if (strcmp(locale_tuple->value->cstring, "default") == 0)
     {
-      if (persist_exists(CONFIG_KEY_LOCALE)) 
+      if (persist_exists(MESSAGE_KEY_LOCALE)) 
       {
-        persist_delete(CONFIG_KEY_LOCALE);
+        persist_delete(MESSAGE_KEY_LOCALE);
       }
     }
     else if (strcmp(locale_tuple->value->cstring, "fr") == 0)
     {
-      persist_write_int(CONFIG_KEY_LOCALE, locale_fr);
+      persist_write_int(MESSAGE_KEY_LOCALE, locale_fr);
     }
     else if (strcmp(locale_tuple->value->cstring, "de") == 0)
     {
-      persist_write_int(CONFIG_KEY_LOCALE, locale_de);
+      persist_write_int(MESSAGE_KEY_LOCALE, locale_de);
     }
     else if (strcmp(locale_tuple->value->cstring, "es") == 0)
     {
-      persist_write_int(CONFIG_KEY_LOCALE, locale_es);
+      persist_write_int(MESSAGE_KEY_LOCALE, locale_es);
+    }
+    else if (strcmp(locale_tuple->value->cstring, "it") == 0)
+    {
+      persist_write_int(MESSAGE_KEY_LOCALE, locale_it);
     }
     else
     {
-      persist_write_int(CONFIG_KEY_LOCALE, locale_en);
+      persist_write_int(MESSAGE_KEY_LOCALE, locale_en);
     }
   }
+  
+  Tuple *hh_strip_zero_tuple = dict_find(received, MESSAGE_KEY_HH_STRIP_ZERO);
+  if (hh_strip_zero_tuple)
+  {
+    app_log(APP_LOG_LEVEL_DEBUG,
+            __FILE__,
+            __LINE__,
+            "hh_strip_zero=%s",
+            hh_strip_zero_tuple->value->cstring);
+
+    if (strcmp(hh_strip_zero_tuple->value->cstring, "0") == 0)
+    {
+      persist_write_bool(MESSAGE_KEY_HH_STRIP_ZERO, false);
+    }
+    else
+    {
+      persist_write_bool(MESSAGE_KEY_HH_STRIP_ZERO, true);
+    }
+  }
+  
+  Tuple *time_sep_tuple = dict_find(received, MESSAGE_KEY_TIME_SEP);
+  if (time_sep_tuple)
+  {
+    app_log(APP_LOG_LEVEL_DEBUG,
+            __FILE__,
+            __LINE__,
+            "time_sep=%s",
+            time_sep_tuple->value->cstring);
+
+    if (strcmp(time_sep_tuple->value->cstring, "square") == 0)
+    {
+      persist_write_int(MESSAGE_KEY_TIME_SEP, time_sep_square);
+    }
+    else if (strcmp(time_sep_tuple->value->cstring, "round") == 0)
+    {
+      persist_write_int(MESSAGE_KEY_TIME_SEP, time_sep_round);
+    }
+    else if (strcmp(time_sep_tuple->value->cstring, "squareb") == 0)
+    {
+      persist_write_int(MESSAGE_KEY_TIME_SEP, time_sep_square_bold);
+    }
+    else if (strcmp(time_sep_tuple->value->cstring, "roundb") == 0)
+    {
+      persist_write_int(MESSAGE_KEY_TIME_SEP, time_sep_round_bold);
+    }
+    else
+    {
+      persist_write_int(MESSAGE_KEY_TIME_SEP, time_sep_none);
+    }
+  }
+  
+  Tuple *repeat_vib_tuple = dict_find(received, MESSAGE_KEY_REPEAT_VIB);
+  if (repeat_vib_tuple)
+  {
+    app_log(APP_LOG_LEVEL_DEBUG,
+            __FILE__,
+            __LINE__,
+            "repeat_vib=%s",
+            repeat_vib_tuple->value->cstring);
+
+    if (strcmp(repeat_vib_tuple->value->cstring, "1") == 0)
+    {
+      persist_write_bool(MESSAGE_KEY_REPEAT_VIB, true);
+    }
+    else
+    {
+      persist_write_bool(MESSAGE_KEY_REPEAT_VIB, false);
+    }
+  }  
 
   read_configuration();
   update_display();
